@@ -26,3 +26,6 @@ COPY --from=builder /out/bin/recon /usr/local/bin/recon
 COPY --from=builder /out/bin/auditpack /usr/local/bin/auditpack
 
 ENTRYPOINT ["/usr/local/bin/pipeline"]
+
+EXPOSE 8080
+CMD ["server"]
