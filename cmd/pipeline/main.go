@@ -9,6 +9,7 @@ import (
 
 	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/pipeline"
 	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/runid"
+	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/server"
 )
 
 func main() {
@@ -20,6 +21,11 @@ func main() {
 	switch os.Args[1] {
 	case "run":
 		run(os.Args[2:])
+	case "server":
+		if err := server.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -30,11 +36,18 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `finance-pipeline-gcp
 
 Commands:
-  run   Run recon + auditpack on two CSVs
+  run     Run recon + auditpack on two CSVs
+  server  Cloud Run handler for Eventarc/GCS (downloads in/<runID>/left.csv + right.csv, uploads out/<runID>/...)
 
 Examples:
   go run ./cmd/pipeline run --left left.csv --right right.csv --out ./out
-  go run ./cmd/pipeline run --left left.csv --right right.csv --out ./out --run-id demo
+  go run ./cmd/pipeline server
+
+Env (server):
+  OUTPUT_BUCKET   (required)
+  INPUT_PREFIX    (default: in/)
+  OUTPUT_PREFIX   (default: out/)
+  PORT            (default: 8080)
 `)
 }
 
