@@ -77,3 +77,60 @@ demo-bad: tools
 > '
 > diff -qr ./out/bad1 ./out/bad2
 > @echo "OK: bad lane is deterministic (error.txt + verifiable pack)."
+
+IMAGE ?= finance-pipeline-gcp:local
+UID_GID := $(shell id -u):$(shell id -g)
+
+.PHONY: docker-build docker-demo docker-demo-bad
+
+docker-build:
+> docker build -t "$(IMAGE)" .
+
+docker-demo: docker-build
+> rm -rf ./out/docker1 ./out/docker2
+> mkdir -p ./out
+> docker run --rm -u "$(UID_GID)" -v "$(PWD):/work" -w /work "$(IMAGE)" run \
+>   --left ./fixtures/demo/left.csv \
+>   --right ./fixtures/demo/right.csv \
+>   --out ./out/docker1 \
+>   --run-id demo
+> docker run --rm -u "$(UID_GID)" -v "$(PWD):/work" -w /work "$(IMAGE)" run \
+>   --left ./fixtures/demo/left.csv \
+>   --right ./fixtures/demo/right.csv \
+>   --out ./out/docker2 \
+>   --run-id demo
+> diff -qr ./out/docker1 ./out/docker2
+> docker run --rm -u "$(UID_GID)" -v "$(PWD):/work" -w /work "$(IMAGE)" run \
+>   --left ./fixtures/demo/left.csv \
+>   --right ./fixtures/demo/right.csv \
+>   --out ./out/docker1 \
+>   --run-id demo
+> @echo "OK: docker good lane deterministic."
+
+docker-demo-bad: docker-build
+> rm -rf ./out/dockerbad1 ./out/dockerbad2
+> mkdir -p ./out
+> bash -ceu ' \
+>   set +e; \
+>   docker run --rm -u "$(UID_GID)" -v "$(PWD):/work" -w /work "$(IMAGE)" run \
+>     --left ./fixtures/bad/left.csv \
+>     --right ./fixtures/bad/right.csv \
+>     --out ./out/dockerbad1 \
+>     --run-id baddemo; \
+>   rc=$$?; \
+>   test $$rc -ne 0; \
+>   test -f ./out/dockerbad1/baddemo/tree/error.txt; \
+> '
+> bash -ceu ' \
+>   set +e; \
+>   docker run --rm -u "$(UID_GID)" -v "$(PWD):/work" -w /work "$(IMAGE)" run \
+>     --left ./fixtures/bad/left.csv \
+>     --right ./fixtures/bad/right.csv \
+>     --out ./out/dockerbad2 \
+>     --run-id baddemo; \
+>   rc=$$?; \
+>   test $$rc -ne 0; \
+>   test -f ./out/dockerbad2/baddemo/tree/error.txt; \
+> '
+> diff -qr ./out/dockerbad1 ./out/dockerbad2
+> @echo "OK: docker bad lane deterministic (error.txt + verifiable pack)."
