@@ -1,0 +1,6 @@
+.git
+out
+dist
+bin
+*.log
+.DS_Store
