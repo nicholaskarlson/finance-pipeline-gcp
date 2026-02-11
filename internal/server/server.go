@@ -61,6 +61,13 @@ func Run() error {
 			return
 		}
 
+		// Eventarc/CloudEvents may deliver non-finalize events (delete/archive/metadata updates).
+		// We only act on finalize; everything else is ACKed (204) to avoid noisy retries.
+		if ref.Type != "" && ref.Type != "google.cloud.storage.object.v1.finalized" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		// Guard rail: only process events from INPUT_BUCKET.
 		// This helps avoid accidental cross-bucket triggers and keeps the input contract tight.
 		if ref.Bucket != inBucket {
