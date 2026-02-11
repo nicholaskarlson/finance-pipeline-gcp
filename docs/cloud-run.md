@@ -42,6 +42,8 @@ The pipeline writes a small completion marker at the root of each output run:
 
 Downstream consumers should wait for one of these markers before reading other outputs to avoid partial runs.
 
+Markers are uploaded last, so their presence means other outputs for the run are already visible.
+
 The server is idempotent: if either marker already exists for a run, the event is ACKed (204) and no work is repeated.
 
 ## Environment variables

@@ -399,6 +399,19 @@ func collectFilePaths(dir string) ([]string, error) {
 		rj, _ := filepath.Rel(dir, files[j])
 		return filepath.ToSlash(ri) < filepath.ToSlash(rj)
 	})
+	// Ensure completion markers upload last. Their presence is the "done" signal,
+	// so we want all other outputs to be visible before the marker appears.
+	var markers []string
+	var rest []string
+	for _, p := range files {
+		base := filepath.Base(p)
+		if base == "_SUCCESS.json" || base == "_ERROR.json" {
+			markers = append(markers, p)
+			continue
+		}
+		rest = append(rest, p)
+	}
+	files = append(rest, markers...)
 	return files, nil
 }
 

@@ -29,6 +29,7 @@ func TestCollectFilePaths_DeterministicOrder(t *testing.T) {
 	mustWrite(t, filepath.Join(dir, "a.txt"), "a")
 	mustWrite(t, filepath.Join(dir, "sub", "z.txt"), "z")
 	mustWrite(t, filepath.Join(dir, "sub", "m.txt"), "m")
+	mustWrite(t, filepath.Join(dir, "_SUCCESS.json"), "{}")
 
 	got1, err := collectFilePaths(dir)
 	if err != nil {
@@ -56,6 +57,7 @@ func TestCollectFilePaths_DeterministicOrder(t *testing.T) {
 		"b.txt",
 		"sub/m.txt",
 		"sub/z.txt",
+		"_SUCCESS.json",
 	}
 	if !reflect.DeepEqual(rels, want) {
 		t.Fatalf("unexpected order\n got=%v\nwant=%v", rels, want)
