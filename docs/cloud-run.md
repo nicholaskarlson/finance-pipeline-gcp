@@ -48,3 +48,16 @@ Optional:
 Your smoke tests POST `{}` (empty event) and expect `204`.
 
 To ensure the server is safe to run locally without GCS credentials, the handler also treats any event that does **not** match `INPUT_BUCKET` as a no-op.
+
+## GCS client hardening (optional)
+
+The server and pipeline use simple HTTP calls to GCS. You can tune retry/timeouts via env vars:
+
+- `GCS_RETRIES` (default `3`) — total attempts for token/download/upload
+- `GCS_TOKEN_TIMEOUT` (default `10s`) — per-attempt timeout for metadata token
+- `GCS_DOWNLOAD_TIMEOUT` (default `60s`) — per-attempt timeout for downloads
+- `GCS_UPLOAD_TIMEOUT` (default `60s`) — per-attempt timeout for uploads
+- `GCS_RETRY_BACKOFF` (default `200ms`) — initial backoff between retries
+- `GCS_RETRY_MAX_BACKOFF` (default `2s`) — max backoff between retries
+
+Retries are attempted for `429` and `5xx` responses, plus network timeouts/temporary errors.
