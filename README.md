@@ -110,3 +110,12 @@ update fixtures/goldens together and let CI be your witness.
 ## License
 
 MIT (or as specified in the repo’s LICENSE file).
+
+## Cloud Run server (Eventarc + Cloud Storage)
+
+This repo includes a small HTTP server intended for **Cloud Run** behind an **Eventarc trigger** (Cloud Storage object finalized).
+
+Key safety rule:
+- The server requires `INPUT_BUCKET` and will **ignore events from any other bucket**.
+
+See `docs/cloud-run.md` for the expected object layout and environment variables.

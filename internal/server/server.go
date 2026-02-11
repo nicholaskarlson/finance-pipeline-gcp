@@ -18,7 +18,13 @@ import (
 func Run() error {
 	inPrefix := ensureSlash(getenv("INPUT_PREFIX", "in/"))
 	outPrefix := ensureSlash(getenv("OUTPUT_PREFIX", "out/"))
-	outBucket := os.Getenv("OUTPUT_BUCKET")
+
+	inBucket := strings.TrimSpace(os.Getenv("INPUT_BUCKET"))
+	if inBucket == "" {
+		return fmt.Errorf("INPUT_BUCKET is required")
+	}
+
+	outBucket := strings.TrimSpace(os.Getenv("OUTPUT_BUCKET"))
 	if outBucket == "" {
 		return fmt.Errorf("OUTPUT_BUCKET is required")
 	}
@@ -38,6 +44,13 @@ func Run() error {
 
 		ref := event.ParseObjectRef(r, body)
 		if ref.Bucket == "" || ref.Name == "" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		// Guard rail: only process events from INPUT_BUCKET.
+		// This helps avoid accidental cross-bucket triggers and keeps the input contract tight.
+		if ref.Bucket != inBucket {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -72,12 +85,12 @@ func Run() error {
 			return
 		}
 
-		// Download inputs from the *input bucket* (ref.Bucket)
-		if err := gcsutil.DownloadToFile(ctx, token, ref.Bucket, leftObj, leftPath); err != nil {
+		// Download inputs from INPUT_BUCKET (not from the event payload).
+		if err := gcsutil.DownloadToFile(ctx, token, inBucket, leftObj, leftPath); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := gcsutil.DownloadToFile(ctx, token, ref.Bucket, rightObj, rightPath); err != nil {
+		if err := gcsutil.DownloadToFile(ctx, token, inBucket, rightObj, rightPath); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

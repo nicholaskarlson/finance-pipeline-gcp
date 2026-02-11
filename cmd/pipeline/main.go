@@ -44,6 +44,7 @@ Examples:
   go run ./cmd/pipeline server
 
 Env (server):
+  INPUT_BUCKET    (required; server ignores events from other buckets)
   OUTPUT_BUCKET   (required)
   INPUT_PREFIX    (default: in/)
   OUTPUT_PREFIX   (default: out/)
