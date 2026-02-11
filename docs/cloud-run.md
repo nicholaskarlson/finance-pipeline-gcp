@@ -32,6 +32,16 @@ You can change the prefixes via:
 - `INPUT_PREFIX` (default `in/`)
 - `OUTPUT_PREFIX` (default `out/`)
 
+
+## Completion markers
+
+The pipeline writes a small completion marker at the root of each output run:
+
+- `gs://$OUTPUT_BUCKET/out/<run_id>/_SUCCESS.json` on success
+- `gs://$OUTPUT_BUCKET/out/<run_id>/_ERROR.json` on failure (pack still uploaded)
+
+Downstream consumers should wait for one of these markers before reading other outputs to avoid partial runs.
+
 ## Environment variables
 
 Required:

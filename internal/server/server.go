@@ -126,6 +126,13 @@ func Run() error {
 			AuditpackBin: "auditpack",
 		})
 
+		// Write a completion marker into the run directory so downstream consumers
+		// can avoid reading partial outputs.
+		if err := writeCompletionMarker(res.RunDir, runID, runErr); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		// Always upload results (pack exists even on recon failure)
 		uploadPrefix := outPrefix + runID
 		if err := gcsutil.UploadDir(ctx, token, outBucket, uploadPrefix, res.RunDir); err != nil {
