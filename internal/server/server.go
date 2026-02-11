@@ -105,6 +105,24 @@ func Run() error {
 			return
 		}
 
+		// Idempotency: if this run has already completed (success or error marker exists),
+		// ACK the event and return without re-running work.
+		markerPrefix := outPrefix + runID
+		if ok, err := gcsutil.ObjectExists(ctx, token, outBucket, markerPrefix+"/_SUCCESS.json"); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} else if ok {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if ok, err := gcsutil.ObjectExists(ctx, token, outBucket, markerPrefix+"/_ERROR.json"); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} else if ok {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		// Download inputs from INPUT_BUCKET (not from the event payload).
 		if err := gcsutil.DownloadToFile(ctx, token, inBucket, leftObj, leftPath); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

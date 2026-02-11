@@ -223,6 +223,53 @@ func AccessToken(ctx context.Context) (string, error) {
 	return out, nil
 }
 
+func ObjectExists(ctx context.Context, token, bucket, object string) (bool, error) {
+	u := fmt.Sprintf("https://storage.googleapis.com/storage/v1/b/%s/o/%s",
+		url.PathEscape(bucket),
+		url.PathEscape(object),
+	)
+
+	attempts := retries()
+	to := downloadTimeout()
+
+	exists := false
+	err := doWithRetry(ctx, attempts, retryBackoff(), retryMaxBackoff(), func(parent context.Context) error {
+		cctx, cancel := context.WithTimeout(parent, to)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(cctx, http.MethodGet, u, nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		// Not found is a clean, non-retryable answer.
+		if resp.StatusCode == http.StatusNotFound {
+			exists = false
+			return nil
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+			// Retry transient failures.
+			return retryableStatusError{status: resp.StatusCode, body: strings.TrimSpace(string(b))}
+		}
+
+		exists = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func DownloadToFile(ctx context.Context, token, bucket, object, dst string) error {
 	u := fmt.Sprintf("https://storage.googleapis.com/storage/v1/b/%s/o/%s?alt=media",
 		url.PathEscape(bucket),

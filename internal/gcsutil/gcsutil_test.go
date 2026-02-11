@@ -1,9 +1,13 @@
 package gcsutil
 
 import (
+	"context"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -55,5 +59,77 @@ func TestCollectFilePaths_DeterministicOrder(t *testing.T) {
 	}
 	if !reflect.DeepEqual(rels, want) {
 		t.Fatalf("unexpected order\n got=%v\nwant=%v", rels, want)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func TestObjectExists(t *testing.T) {
+	old := http.DefaultClient.Transport
+	defer func() { http.DefaultClient.Transport = old }()
+
+	// Ensure deterministic retry behavior in this unit test.
+	os.Setenv("GCS_RETRIES", "1")
+	defer os.Unsetenv("GCS_RETRIES")
+
+	http.DefaultClient.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			return &http.Response{
+				StatusCode: http.StatusMethodNotAllowed,
+				Body:       io.NopCloser(strings.NewReader("")),
+				Header:     make(http.Header),
+			}, nil
+		}
+		if got := req.Header.Get("Authorization"); got != "Bearer tok" {
+			return &http.Response{
+				StatusCode: http.StatusUnauthorized,
+				Body:       io.NopCloser(strings.NewReader("missing auth")),
+				Header:     make(http.Header),
+			}, nil
+		}
+
+		u := req.URL.String()
+		switch {
+		case strings.Contains(u, "/o/exist"):
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("{}")),
+				Header:     make(http.Header),
+			}, nil
+		case strings.Contains(u, "/o/nope"):
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Body:       io.NopCloser(strings.NewReader("not found")),
+				Header:     make(http.Header),
+			}, nil
+		default:
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Body:       io.NopCloser(strings.NewReader("bad request")),
+				Header:     make(http.Header),
+			}, nil
+		}
+	})
+
+	ctx := context.Background()
+
+	ok, err := ObjectExists(ctx, "tok", "bucket", "exist")
+	if err != nil {
+		t.Fatalf("ObjectExists exist: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected exist=true")
+	}
+
+	ok, err = ObjectExists(ctx, "tok", "bucket", "nope")
+	if err != nil {
+		t.Fatalf("ObjectExists nope: %v", err)
+	}
+	if ok {
+		t.Fatalf("expected exist=false")
 	}
 }
