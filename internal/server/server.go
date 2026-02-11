@@ -83,8 +83,8 @@ func Run() error {
 		}
 		defer os.RemoveAll(tmp)
 
-		leftObj := path.Join(inPrefix, runID, "left.csv")
-		rightObj := path.Join(inPrefix, runID, "right.csv")
+		leftObj := inPrefix + runID + "/left.csv"
+		rightObj := inPrefix + runID + "/right.csv"
 
 		leftPath := filepathOS(tmp, "left.csv")
 		rightPath := filepathOS(tmp, "right.csv")
@@ -120,7 +120,7 @@ func Run() error {
 		})
 
 		// Always upload results (pack exists even on recon failure)
-		uploadPrefix := path.Join(outPrefix, runID)
+		uploadPrefix := outPrefix + runID
 		if err := gcsutil.UploadDir(ctx, token, outBucket, uploadPrefix, res.RunDir); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -141,7 +141,34 @@ func Run() error {
 	return http.ListenAndServe(addr, mux)
 }
 
+func validRunID(runID string) bool {
+	if runID == "" {
+		return false
+	}
+	if len(runID) > 64 {
+		return false
+	}
+	for i := 0; i < len(runID); i++ {
+		c := runID[i]
+		isAlphaNum := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+		isAllowed := isAlphaNum || c == '-' || c == '_'
+		if !isAllowed {
+			return false
+		}
+		if i == 0 && !isAlphaNum {
+			return false
+		}
+	}
+	return true
+}
+
+// parseRunID extracts a run id from an object name like:
+//
+//	in/<run_id>/right.csv
+//
+// run_id is intentionally restrictive to prevent path traversal / prefix escape.
 func parseRunID(objectName, inputPrefix string) (string, bool) {
+	inputPrefix = ensureSlash(inputPrefix)
 	if !strings.HasPrefix(objectName, inputPrefix) {
 		return "", false
 	}
@@ -154,7 +181,7 @@ func parseRunID(objectName, inputPrefix string) (string, bool) {
 	if parts[1] != "right.csv" {
 		return "", false
 	}
-	if runID == "" {
+	if !validRunID(runID) {
 		return "", false
 	}
 	return runID, true

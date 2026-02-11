@@ -16,6 +16,7 @@ The handler **ignores events** whose bucket does not match `INPUT_BUCKET`.
 Upload the *right* file to:
 
 - `gs://$INPUT_BUCKET/in/<run_id>/right.csv`
+  - `run_id` must be 1–64 chars: letters/digits, plus `-` and `_` (first char must be a letter or digit).
 
 The server then downloads:
 
