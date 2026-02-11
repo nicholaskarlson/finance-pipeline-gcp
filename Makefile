@@ -134,3 +134,51 @@ docker-demo-bad: docker-build
 > '
 > diff -qr ./out/dockerbad1 ./out/dockerbad2
 > @echo "OK: docker bad lane deterministic (error.txt + verifiable pack)."
+
+
+.PHONY: server-smoke docker-server-smoke
+
+# Local smoke: start server, POST `{}`, expect 204
+server-smoke:
+> @echo "Running local server smoke test (expects 204 on empty event)..."
+> bash -ceu ' \
+>   export OUTPUT_BUCKET="$${OUTPUT_BUCKET:-dummy-bucket}"; \
+>   export INPUT_BUCKET="$${INPUT_BUCKET:-dummy-in-bucket}"; \
+>   export PORT="$${PORT:-8080}"; \
+>   ( $(GO) run ./cmd/pipeline server >/tmp/pipeline-server.log 2>&1 & echo $$! > /tmp/pipeline-server.pid ); \
+>   pid=$$(cat /tmp/pipeline-server.pid); \
+>   trap "kill $$pid >/dev/null 2>&1 || true" EXIT; \
+>   for i in {1..25}; do \
+>     code=$$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$$PORT" -d "{}" || true); \
+>     [ "$$code" = "204" ] && { echo "OK: local server returned 204"; exit 0; }; \
+>     sleep 0.2; \
+>   done; \
+>   echo "Server did not return 204. Last logs:"; \
+>   tail -n 80 /tmp/pipeline-server.log; \
+>   exit 1; \
+> '
+
+# Docker smoke: run container server, POST `{}`, expect 204
+docker-server-smoke: docker-build
+> @echo "Running docker server smoke test (expects 204 on empty event)..."
+> bash -ceu ' \
+>   host_port="$${DOCKER_HOST_PORT:-18080}"; \
+>   container_port="$${DOCKER_CONTAINER_PORT:-8080}"; \
+>   docker rm -f fpgcp-smoke >/dev/null 2>&1 || true; \
+>   docker run -d --name fpgcp-smoke -p "$$host_port:$$container_port" \
+>     -e OUTPUT_BUCKET="$${OUTPUT_BUCKET:-dummy-bucket}" \
+>     -e INPUT_BUCKET="$${INPUT_BUCKET:-dummy-in-bucket}" \
+>     -e PORT="$$container_port" \
+>     finance-pipeline-gcp:local server >/dev/null; \
+>   trap "docker rm -f fpgcp-smoke >/dev/null 2>&1 || true" EXIT; \
+>   for i in {1..25}; do \
+>     code=$$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$$host_port" -d "{}" || true); \
+>     [ "$$code" = "204" ] && { echo "OK: docker server returned 204"; exit 0; }; \
+>     sleep 0.2; \
+>   done; \
+>   echo "Container did not return 204. Logs:"; \
+>   docker logs --tail 120 fpgcp-smoke; \
+>   exit 1; \
+> '
+
+
