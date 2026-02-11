@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/gcsutil"
 	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/pipeline"
 )
+
+const maxEventBodyBytes int64 = 1 << 20 // 1MiB
 
 func Run() error {
 	inPrefix := ensureSlash(getenv("INPUT_PREFIX", "in/"))
@@ -39,8 +42,18 @@ func Run() error {
 			return
 		}
 
-		body, _ := io.ReadAll(r.Body)
+		r.Body = http.MaxBytesReader(w, r.Body, maxEventBodyBytes)
+		body, err := io.ReadAll(r.Body)
 		_ = r.Body.Close()
+		if err != nil {
+			var mbe *http.MaxBytesError
+			if errors.As(err, &mbe) {
+				http.Error(w, "event payload too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "read event body failed", http.StatusBadRequest)
+			return
+		}
 
 		ref := event.ParseObjectRef(r, body)
 		if ref.Bucket == "" || ref.Name == "" {
