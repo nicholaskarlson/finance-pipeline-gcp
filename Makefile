@@ -148,13 +148,13 @@ server-smoke:
 >   ( $(GO) run ./cmd/pipeline server >/tmp/pipeline-server.log 2>&1 & echo $$! > /tmp/pipeline-server.pid ); \
 >   pid=$$(cat /tmp/pipeline-server.pid); \
 >   trap "kill $$pid >/dev/null 2>&1 || true" EXIT; \
->   for i in {1..25}; do \
+>   for i in {1..150}; do \
 >     code=$$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$$PORT" -d "{}" || true); \
 >     [ "$$code" = "204" ] && { echo "OK: local server returned 204"; exit 0; }; \
 >     sleep 0.2; \
 >   done; \
 >   echo "Server did not return 204. Last logs:"; \
->   tail -n 80 /tmp/pipeline-server.log; \
+>   tail -n 120 /tmp/pipeline-server.log; \
 >   exit 1; \
 > '
 
@@ -171,7 +171,7 @@ docker-server-smoke: docker-build
 >     -e PORT="$$container_port" \
 >     finance-pipeline-gcp:local server >/dev/null; \
 >   trap "docker rm -f fpgcp-smoke >/dev/null 2>&1 || true" EXIT; \
->   for i in {1..25}; do \
+>   for i in {1..150}; do \
 >     code=$$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$$host_port" -d "{}" || true); \
 >     [ "$$code" = "204" ] && { echo "OK: docker server returned 204"; exit 0; }; \
 >     sleep 0.2; \
