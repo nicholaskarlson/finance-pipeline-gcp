@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/event"
 	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/gcsutil"
 	"github.com/nicholaskarlson/finance-pipeline-gcp/internal/pipeline"
+	contract "github.com/nicholaskarlson/proof-first-event-contracts/contract"
 )
 
 const maxEventBodyBytes int64 = 1 << 20 // 1MiB
@@ -55,28 +55,28 @@ func Run() error {
 			return
 		}
 
-		ref := event.ParseObjectRef(r, body)
-		if ref.Bucket == "" || ref.Name == "" {
+		dec, obj, errText := contract.ParseEventarcAndDecide(r.Header.Get("Ce-Type"), body, inBucket)
+		if errText != nil {
+			// Malformed / unexpected events should not cause retries.
+			fmt.Fprintf(os.Stdout, "event_contract_error: %s", *errText)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		// Eventarc/CloudEvents may deliver non-finalize events (delete/archive/metadata updates).
-		// We only act on finalize; everything else is ACKed (204) to avoid noisy retries.
-		if ref.Type != "" && ref.Type != "google.cloud.storage.object.v1.finalized" {
+		if !dec.ShouldRun {
+			// Deterministic ignores (delete/archive/metadata updates, wrong bucket, etc.).
+			fmt.Fprintf(os.Stdout, "event_contract_ignore: %s\n", dec.Reason)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		// Guard rail: only process events from INPUT_BUCKET.
-		// This helps avoid accidental cross-bucket triggers and keeps the input contract tight.
-		if ref.Bucket != inBucket {
-			w.WriteHeader(http.StatusNoContent)
-			return
+		name := obj.NameUnescaped
+		if name == "" {
+			name = obj.Name
 		}
 
 		// Trigger only on: in/<runID>/right.csv
-		runID, ok := parseRunID(ref.Name, inPrefix)
+		runID, ok := parseRunID(name, inPrefix)
 		if !ok {
 			w.WriteHeader(http.StatusNoContent)
 			return
