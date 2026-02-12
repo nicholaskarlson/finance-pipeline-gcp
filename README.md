@@ -77,6 +77,7 @@ If you extend the schema, keep the contract explicit and update fixtures + golde
 
 ## Determinism contract (what we guarantee)
 
+- **Event filtering attaching to Cloud Run** is delegated to `proof-first-event-contracts` (tagged snapshot for Book 2).
 This project is designed so that:
 
 - the same inputs produce the same outputs (byte‑for‑byte),
