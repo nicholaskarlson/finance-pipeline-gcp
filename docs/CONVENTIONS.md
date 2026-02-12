@@ -32,3 +32,19 @@ Event parsing and decision rules (finalize vs ignore, object name unescaping, bu
 - `github.com/nicholaskarlson/proof-first-event-contracts` (tagged)
 
 This repo consumes the contract’s outputs (decision + object_ref) and focuses on the pipeline run + artifact publication.
+
+## macOS tooling note (GNU make)
+
+This repo intentionally uses **GNU make** features (e.g. `.RECIPEPREFIX`) to keep recipes readable and consistent across the book repos.
+
+On macOS, the default `/usr/bin/make` is BSD make and may fail with errors like:
+
+- `Makefile:13: *** missing separator. Stop.`
+
+Use GNU make instead:
+
+```bash
+brew install make
+gmake verify
+PORT=18080 gmake server-smoke
+```

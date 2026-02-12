@@ -108,6 +108,22 @@ update fixtures/goldens together and let CI be your witness.
 
 ---
 
+## macOS tooling note (GNU make)
+
+This repo intentionally uses **GNU make** features (e.g. `.RECIPEPREFIX`) to keep recipes readable and consistent across the book repos.
+
+On macOS, the default `/usr/bin/make` is BSD make and may fail with errors like:
+
+- `Makefile:13: *** missing separator. Stop.`
+
+Use GNU make instead:
+
+```bash
+brew install make
+gmake verify
+PORT=18080 gmake server-smoke
+```
+
 ## License
 
 MIT (or as specified in the repo’s LICENSE file).
