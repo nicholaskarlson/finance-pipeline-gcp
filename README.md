@@ -106,6 +106,19 @@ See `docs/CONVENTIONS.md` for the full contract.
 
 ---
 
+## Where this fits (Book 2)
+
+Book 2 is built from four small MIT-licensed repos that snap together into a pipeline-grade, deterministic cloud workflow:
+
+- **Anchor (this repo):** `finance-pipeline-gcp` — drop-folder workflow: trigger → run → deterministic artifacts → completion markers → replay safety.
+- **Repo A:** `proof-first-event-contracts` — event parsing + filtering contract (CloudEvents + Eventarc), proven by fixtures/goldens + expected-fail.
+- **Repo B:** `proof-first-deploy-gcp` — deterministic *deploy evidence*: render manifests and verify a “what’s deployed” snapshot without secrets.
+- **Repo C:** `proof-first-casefiles` — “engagement kits” a freelancer can hand to a client: realistic inputs + expected outputs + expected-fail cases.
+
+The book references **tags** (e.g. `book2-v1`) across all four repos, not moving `main` branches.
+
+---
+
 ## Event contract dependency (Book 2 source of truth)
 
 Event parsing + filtering rules (finalize vs ignore, bucket guardrails, name unescaping, expected-fail behavior) are delegated to:
@@ -129,13 +142,11 @@ See `docs/cloud-run.md` for details.
 
 ## macOS note (make)
 
-This repo’s Makefile is written for GNU make (CI uses `gmake` on macOS).
-If you’re on macOS:
+This repo’s Makefile is portable (no GNU-make-only features). On macOS, the usual commands work:
 
 ```bash
-brew install make
-gmake verify
-PORT=18080 gmake server-smoke
+make verify
+PORT=18080 make server-smoke
 ```
 
 ---
