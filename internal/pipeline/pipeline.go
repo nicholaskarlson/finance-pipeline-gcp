@@ -72,7 +72,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	// If recon fails, record deterministic evidence (but still pack it).
 	if reconErr != nil {
 		errPath := filepath.Join(treeDir, "error.txt")
-		_ = os.WriteFile(errPath, []byte(reconOut), 0o644)
+		if werr := os.WriteFile(errPath, []byte(reconOut), 0o644); werr != nil {
+			return Result{}, fmt.Errorf("write %s: %w", errPath, werr)
+		}
 	}
 
 	// Always build pack (success OR failure)
