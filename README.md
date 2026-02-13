@@ -21,7 +21,7 @@ This repo is designed to be used alongside the other Book 2 repos:
 - **[proof-first-deploy-gcp](https://github.com/nicholaskarlson/proof-first-deploy-gcp)** — deterministic deploy evidence (render + verify) + fixtures/goldens
 - **[proof-first-casefiles](https://github.com/nicholaskarlson/proof-first-casefiles)** — engagement kits you can hand to a client (or use in teaching)
 
-## Quickstart (local)
+## Quickstart
 
 Run the proof gate:
 
