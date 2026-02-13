@@ -2,20 +2,46 @@
 
 Portfolio MVP: the **Audit-Proof Drop Folder** workflow.
 
-**Pitch:** Upload two CSVs (**left** + **right**). The system:
-1) runs **deterministic** normalization + reconciliation,
-2) produces an **audit-pack style** set of artifacts (so results can be verified later),
-3) emits a simple, human-readable summary report.
+![ci](https://github.com/nicholaskarlson/finance-pipeline-gcp/actions/workflows/ci.yml/badge.svg)
+![license](https://img.shields.io/badge/license-MIT-blue.svg)
 
-This repo is intentionally small and “proof-first”: the goal is not “pretty dashboards,” it’s **repeatable, checkable outputs**.
+> **Book:** *Proof-First Pipelines in the Cloud* (Book 2)  
+> This repo is the **Anchor (Repo 1 of 4)**. The exact code referenced in the manuscript is tagged **[`book2-v1`](https://github.com/nicholaskarlson/finance-pipeline-gcp/tree/book2-v1)**.
 
----
+A run is triggered by a Cloud Storage event, downloads two CSVs (**left** + **right**), produces deterministic artifacts, and uploads a verifiable evidence bundle plus a completion marker.
+
+**Go baseline:** 1.22.x (CI witnesses ubuntu/macos/windows on 1.22.x, plus ubuntu “stable”).
+
+## Book 2 suite map
+
+This repo is designed to be used alongside the other Book 2 repos:
+
+- **[finance-pipeline-gcp](https://github.com/nicholaskarlson/finance-pipeline-gcp)** — anchor drop-folder workflow (trigger → run → artifacts → markers)
+- **[proof-first-event-contracts](https://github.com/nicholaskarlson/proof-first-event-contracts)** — event parsing contract + fixtures/goldens + expected-fail
+- **[proof-first-deploy-gcp](https://github.com/nicholaskarlson/proof-first-deploy-gcp)** — deterministic deploy evidence (render + verify) + fixtures/goldens
+- **[proof-first-casefiles](https://github.com/nicholaskarlson/proof-first-casefiles)** — engagement kits you can hand to a client (or use in teaching)
+
+## Quickstart (local)
+
+Run the proof gate:
+
+```bash
+make verify
+# (optional) Equivalent, if you want to run it directly:
+# go test -count=1 ./...
+```
+
+`make verify` runs tests and then runs a deterministic demo twice and `diff`s the output trees.
+
+Optional: local server smoke (returns 204 on `{}`):
+
+```bash
+PORT=18080 make server-smoke
+```
 
 ## What this does (conceptually)
 
-You provide two datasets that should mostly agree (for example: bank export vs. ledger export).
-
-The pipeline classifies rows into buckets such as:
+You provide two datasets that should mostly agree (for example: bank export vs. ledger export). The pipeline classifies rows into buckets such as:
 
 - **matched**: same record on both sides (by a stable key)
 - **left_only**: only found on left
@@ -24,132 +50,51 @@ The pipeline classifies rows into buckets such as:
 
 Everything is generated in a stable order and format so CI (and you) can verify outputs byte-for-byte.
 
----
+## Drop-folder contract (GCS naming)
 
-## Quick start (local)
+The Cloud Run handler triggers only on a finalized object named:
 
-### 1) Run the proof gate
+- `in/<run_id>/right.csv`
 
-```bash
-gofmt -w cmd internal
-make verify
-go test -count=1 ./...
-```
+Where `<run_id>` is intentionally restrictive (alphanumeric plus `-` and `_`) to prevent prefix escape.
 
-- `make verify` is the **proof gate**: tests + deterministic demo runs.
-- `make demo` runs the same inputs twice and `diff`s the full output trees.
+When triggered, the service downloads *both* inputs from the input bucket:
 
-### 2) Optional: local server smoke
+- `in/<run_id>/left.csv`
+- `in/<run_id>/right.csv`
 
-```bash
-PORT=18080 make server-smoke
-```
+And uploads outputs to the output bucket prefix:
 
-This starts the Cloud Run handler locally and POSTs `{}`; the safe behavior is to return **204** (no-op).
+- `out/<run_id>/...`
 
----
+A completion marker is always written into the run directory and uploaded as one of:
 
-## Input contract (CSV)
+- `_SUCCESS.json`
+- `_ERROR.json`
 
-The demo uses this simple schema:
+The service is replay-safe: if either marker already exists at `out/<run_id>/`, the event is ACKed and no work is repeated.
 
-| column | type | notes |
-|---|---|---|
-| `id` | string | stable key for matching |
-| `date` | YYYY-MM-DD | ISO date |
-| `amount` | decimal | keep as text/decimal; avoid float surprises |
-| `description` | string | free text |
+See `docs/CONTRACT.md` for the precise rules.
 
-If you extend the schema, keep the contract explicit and update fixtures + goldens.
+## Commands
 
----
-
-## Artifacts produced (stable layout)
-
-Whether you run locally (`cmd/pipeline run`) or via Cloud Run, the pipeline produces the same **run folder** layout.
-
-For an output base `./out/demo1` and `--run-id demo`:
-
-```
-./out/demo1/demo/
-  tree/
-    inputs/
-      left.csv
-      right.csv
-    work/
-      ... (recon outputs)
-    error.txt              # only on "bad data" (recon failure)
-  pack/
-    ... (auditpack outputs; verifiable)
-  _SUCCESS.json            # terminal marker (uploaded/written last)
-  _ERROR.json              # terminal marker (uploaded/written last)
-```
-
-Key idea:
-- `tree/` is the deterministic evidence folder (inputs + work outputs).
-- `pack/` is a verifiable audit pack built from `tree/`.
-- A completion marker (`_SUCCESS.json` or `_ERROR.json`) is the **done signal**.
-
----
-
-## Determinism + idempotency contract
-
-This repo guarantees:
-
-- **Byte-stable outputs** for the same inputs (proof gate enforces this).
-- **Stable ordering** (sorted walks; no map iteration surprises in output-shaping code).
-- **Atomic writes** for important files (write temp → rename).
-- **Deterministic upload order**: all artifacts first, completion marker **last**.
-- **Idempotent server behavior**: if a completion marker already exists for a run, the server ACKs (204) and does nothing.
-
-See `docs/CONVENTIONS.md` for the full contract.
-
----
-
-## Where this fits (Book 2)
-
-Book 2 is built from four small MIT-licensed repos that snap together into a pipeline-grade, deterministic cloud workflow:
-
-- **Anchor (this repo):** `finance-pipeline-gcp` — drop-folder workflow: trigger → run → deterministic artifacts → completion markers → replay safety.
-- **Repo A:** `proof-first-event-contracts` — event parsing + filtering contract (CloudEvents + Eventarc), proven by fixtures/goldens + expected-fail.
-- **Repo B:** `proof-first-deploy-gcp` — deterministic *deploy evidence*: render manifests and verify a “what’s deployed” snapshot without secrets.
-- **Repo C:** `proof-first-casefiles` — “engagement kits” a freelancer can hand to a client: realistic inputs + expected outputs + expected-fail cases.
-
-The book references **tags** (e.g. `book2-v1`) across all four repos, not moving `main` branches.
-
----
-
-## Event contract dependency (Book 2 source of truth)
-
-Event parsing + filtering rules (finalize vs ignore, bucket guardrails, name unescaping, expected-fail behavior) are delegated to:
-
-- `github.com/nicholaskarlson/proof-first-event-contracts` (pinned in `go.mod`)
-
-For Book 2, we freeze both repos with matching tags (e.g. `book2-v1`) so the book references **tags, not moving HEADs**.
-
-See `docs/cloud-run.md` for details.
-
----
-
-## Repo layout (high level)
-
-- `cmd/` — CLI entry points (`run`, `server`)
-- `internal/` — pipeline orchestration + Cloud Run handler
-- `fixtures/` — small reproducible datasets for demos/tests
-- `docs/` — design notes (short, practical, contract-first)
-
----
-
-## macOS note (make)
-
-This repo’s Makefile is portable (no GNU-make-only features). On macOS, the usual commands work:
+Run the pipeline locally (no cloud):
 
 ```bash
-make verify
-PORT=18080 make server-smoke
+go run ./cmd/pipeline run   --left ./fixtures/demo/left.csv   --right ./fixtures/demo/right.csv   --out ./out   --run-id demo
 ```
 
----
+This produces:
+
+- `./out/demo/tree/**` (inputs + work outputs + optional `error.txt`)
+- `./out/demo/pack/**` (verifiable evidence bundle)
+
+## Docs
+
+- `docs/CONVENTIONS.md` — determinism rules shared across Book 2 repos
+- `docs/CONTRACT.md` — trigger rules, replay safety, output layout, failure semantics
+- `docs/HANDOFF.md` — what to hand to a client, how to verify later
+- `docs/cloud-run.md` — Cloud Run + Eventarc notes
 
 ## License
 
